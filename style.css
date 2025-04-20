@@ -1,0 +1,284 @@
+:root {
+    --sidebar-width: 280px;
+    --sidebar-bg: #ffffff;
+    --sidebar-border: #e0e0e0;
+    --primary: #007bff;
+    --primary-hover: #0056b3;
+    --text-color: #333333;
+    --muted: #666666;
+    --switch-bg: #ccc;
+    --switch-active-bg: #4caf50;
+  }
+  
+  /* Reset & Base */
+  html, body {
+    height: 100%;
+    margin: 0;
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    color: var(--text-color);
+  }
+  
+  a, button {
+    font-family: inherit;
+  }
+  
+  /* Sidebar */
+  #sidebar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: var(--sidebar-width);
+    background: var(--sidebar-bg);
+    border-right: 1px solid var(--sidebar-border);
+    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.05);
+    padding: 1.5rem 1rem;
+    overflow-y: auto;
+    transition: width 0.3s ease;
+    z-index: 1000;
+  }
+  
+  #sidebar h2 {
+    margin: 0 0 1rem;
+    font-size: 1.4rem;
+    font-weight: 600;
+    color: var(--text-color);
+    border-bottom: 1px solid var(--sidebar-border);
+    padding-bottom: 0.5rem;
+  }
+  
+  /* Layer switches */
+  .switch {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.6rem 0;
+    border-bottom: 1px solid var(--sidebar-border);
+  }
+  
+  .switch:last-child {
+    border-bottom: none;
+  }
+  
+  .switch-label {
+    margin-left: 0.5rem;
+    color: var(--muted);
+    font-size: 0.95rem;
+    flex: 1;
+  }
+  
+  /* Toggle switch */
+  .switch-input {
+    position: relative;
+    width: 42px;
+    height: 22px;
+    -webkit-appearance: none;
+    background: var(--switch-bg);
+    outline: none;
+    border-radius: 11px;
+    transition: background 0.3s;
+    cursor: pointer;
+  }
+  
+  .switch-input:before {
+    content: '';
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    top: 1px;
+    left: 1px;
+    background: #fff;
+    transition: transform 0.3s;
+  }
+  
+  .switch-input:checked {
+    background: var(--switch-active-bg);
+  }
+  
+  .switch-input:checked:before {
+    transform: translateX(20px);
+  }
+  
+  /* Reset view button */
+  #resetView {
+    display: block;
+    width: 100%;
+    margin-top: 1.5rem;
+    padding: 0.75rem;
+    background: var(--primary);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  
+  #resetView:hover {
+    background: var(--primary-hover);
+  }
+  
+  /* Map positioning */
+  #map {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: calc(var(--sidebar-width) + 1px);
+    transition: left 0.3s ease;
+  }
+  
+  /* Responsive: mobile & small tablets */
+  @media (max-width: 768px) {
+    #sidebar {
+      position: relative;
+      width: 100%;
+      height: auto;
+      box-shadow: none;
+      border-right: none;
+      padding: 1rem;
+    }
+    #map {
+      left: 0;
+      top: calc(var(--sidebar-width) * -1); /* ปรับกรณีต้องการให้ map อยู่ด้านล่าง sidebar */
+    }
+  }
+  
+  /* Optional: ปรับ scrollbar ให้ดูสวยขึ้น (WebKit) */
+  #sidebar::-webkit-scrollbar {
+    width: 6px;
+  }
+  #sidebar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  #sidebar::-webkit-scrollbar-thumb {
+    background-color: rgba(0,0,0,0.2);
+    border-radius: 3px;
+  }
+/* ================================
+   Basemap (แผนที่พื้นหลัง)
+   ================================ */
+   #basemap-selector {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    margin: 0.75rem 0 1.5rem;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    background: #fafafa;
+    font-size: 1rem;
+    color: var(--text-color);
+    appearance: none;            /* เอา arrow เริ่มต้นออก */
+    background-image: url("data:image/svg+xml;charset=US-ASCII,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8'><path fill='%23666' d='M6 8L0 0h12z'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 0.75rem center;
+    background-size: 12px 8px;
+    cursor: pointer;
+  }
+  
+  /* ================================
+     Opacity slider
+     ================================ */
+  .opacity-slider {
+    flex: 1;
+    margin-left: 0.5rem;
+    height: 4px;
+    -webkit-appearance: none;
+    background: #ddd;
+    border-radius: 2px;
+    cursor: pointer;
+  }
+  .opacity-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    background: var(--primary);
+    border-radius: 50%;
+    border: 2px solid white;
+    box-shadow: 0 0 2px rgba(0,0,0,0.3);
+    cursor: pointer;
+  }
+  .opacity-slider::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    background: var(--primary);
+    border-radius: 50%;
+    border: 2px solid white;
+    box-shadow: 0 0 2px rgba(0,0,0,0.3);
+    cursor: pointer;
+  }
+  
+  /* ================================
+     Measure tools (เครื่องมือวัด)
+     ================================ */
+  .measure-tools {
+    margin-top: 2rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--sidebar-border);
+  }
+  .measure-tools h3 {
+    margin: 0 0 0.75rem;
+    font-size: 1.2rem;
+    color: var(--text-color);
+    border-bottom: 1px solid var(--sidebar-border);
+    padding-bottom: 0.3rem;
+  }
+  .measure-button {
+    display: block;
+    width: 100%;
+    padding: 0.6rem;
+    margin-bottom: 0.6rem;
+    background: var(--primary);
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    font-size: 0.95rem;
+    font-weight: 500;
+    text-align: center;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+  }
+  .measure-button:hover {
+    background: var(--primary-hover);
+  }
+  .measure-button.active {
+    background: var(--primary-hover);
+    transform: translateY(-1px);
+  }
+  
+  /* ================================
+     Legend (ถ้ามี)
+     ================================ */
+  .legend {
+    background: rgba(255,255,255,0.9);
+    padding: 0.75rem;
+    border-radius: 4px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+    font-size: 0.9rem;
+  }
+  .legend h4 {
+    margin: 0 0 0.5rem;
+    font-size: 1rem;
+    color: var(--text-color);
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    margin-bottom: 0.4rem;
+  }
+  .legend-item:last-child {
+    margin-bottom: 0;
+  }
+  .legend-color {
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    margin-right: 0.5rem;
+    border: 1px solid #ccc;
+  }
+  .legend-text {
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+    
