@@ -40,19 +40,24 @@ const basemaps = {
     maxZoom: 20,
     subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
   }),
-  "Satellite": L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+  "Esri Satellite": L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
     attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
-    maxZoom: 19
+    maxZoom: 22
   }),
-  "Terrain": L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Terrain_Base/MapServer/tile/{z}/{y}/{x}', {
+  "Esri Terrain": L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Terrain_Base/MapServer/tile/{z}/{y}/{x}', {
     attribution: 'Tiles &copy; Esri &mdash; Source: USGS, Esri, TANA, DeLorme, and NPS',
-    maxZoom: 13
+    maxZoom: 22
   }),
-  "Topo": L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+  "OSM Topo": L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
     attribution: 'Map data: &copy; OpenStreetMap contributors, SRTM | Map style: &copy; OpenTopoMap (CC-BY-SA)',
-    maxZoom: 17
+    maxZoom: 22
   })
 };
+
+// Feature group 
+const fc = L.featureGroup();
+const modisFG = L.featureGroup();
+
 
 // เพิ่ม default basemap
 basemaps["Google Streets"].addTo(map);
@@ -65,7 +70,9 @@ const layersConfig = [
   { name: 'Health Centre', id: 'nsru:healthcentre', group: 'Infrastructure' },
   { name: 'Basin50',       id: 'nsru:basin50', group: 'Hydrology' },
   { name: 'Roads',         id: 'nsru:roads', group: 'Infrastructure' },
-  { name: 'Buildings',     id: 'nsru:buildings', group: 'Infrastructure' }
+  { name: 'Buildings',     id: 'nsru:rid3_building', group: 'Infrastructure' },
+  { name: 'VIIRS Hotspots (24 hrs)',         id: 'fc',     group: 'Remote Sensing', isFeatureGroup: true  },
+  { name: 'MODIS Hotspots (24 hrs)',         id: 'fg_modis24h',     group: 'Remote Sensing', isFeatureGroup: true  }
 ];
 
 const wmsUrl = 'https://ogc.mapedia.co.th/geoserver/nsru/wms';
@@ -74,20 +81,25 @@ const layerGroups = {};
 
 // 5. สร้าง WMS layers
 layersConfig.forEach(cfg => {
-  // สร้าง WMS layer พร้อมตั้งค่า styles ถ้าต้องการ
-  wmsLayers[cfg.id] = L.tileLayer.wms(wmsUrl, {
-    layers: cfg.id,
-    format: 'image/png',
-    transparent: true,
-    attribution: '© NSRU',
-    styles: '',  // สามารถระบุ SLD style ได้ที่นี่
-    opacity: 0.8  // ค่าความโปร่งใสเริ่มต้น
-  });
-  
-  // เก็บข้อมูลกลุ่ม layer
-  if (!layerGroups[cfg.group]) {
-    layerGroups[cfg.group] = [];
+  // *** ถ้าเป็น FeatureGroup ***
+  if (cfg.isFeatureGroup) {
+    // เก็บ mapping ไว้ให้ control.toggle ใช้ภายหลัง
+    // wmsLayers[cfg.id] = fc;
+    wmsLayers[cfg.id] = (cfg.id === 'fg_modis24h') ? modisFG : fc;
+  } else {
+    // *** ปกติ: สร้าง WMS ***
+    wmsLayers[cfg.id] = L.tileLayer.wms(wmsUrl, {
+      layers: cfg.id,
+      format: 'image/png',
+      transparent: true,
+      attribution: '© NSRU',
+      styles: '',
+      opacity: 0.8
+    });
   }
+
+  // จัดกลุ่มเหมือนเดิม
+  if (!layerGroups[cfg.group]) layerGroups[cfg.group] = [];
   layerGroups[cfg.group].push(cfg);
 });
 
@@ -301,6 +313,8 @@ map.on('click', function(e) {
         // มีข้อมูล feature
         let popupContent = '<div class="feature-info">';
         data.features.forEach(feature => {
+          console.log(popupContent)
+          console.log(data)
           popupContent += `<h4>${feature.id.split('.')[0]}</h4>`;
           popupContent += '<table>';
           for (const prop in feature.properties) {
@@ -325,6 +339,8 @@ map.on('click', function(e) {
     })
     .catch(error => {
       console.error('Error fetching feature info:', error);
+      // console.log(popupContent)
+      // console.log(data)
       // แสดงพิกัดเมื่อมีข้อผิดพลาด
       const { lat, lng } = e.latlng;
       L.popup({ closeOnClick: true })
@@ -543,8 +559,7 @@ document.getElementById('measure-area').addEventListener('click', function() {
   // เพิ่ม click handler
   map.on('click', addMeasurePoint);
 });
-
-// ฟังก์ชันเพิ่มจุดวัด
+// ปรับปรุงฟังก์ชัน addMeasurePoint สำหรับโหมดวัดพื้นที่
 function addMeasurePoint(e) {
   const latlng = e.latlng;
   
@@ -602,11 +617,243 @@ function addMeasurePoint(e) {
       
       // สร้าง popup แสดงพื้นที่
       measureControl.polygon.bindPopup(`พื้นที่: ${areaText}`).openPopup();
+      
+      // สร้าง bounds จาก polygon
+      const bounds = L.latLngBounds(points);
+      
+      // ดึงข้อมูล WMS Features ที่อยู่ภายในพื้นที่
+      getWMSFeaturesInPolygon(points).then(featuresInfo => {
+        // เพิ่มการวัดลงในไซด์บาร์พร้อมข้อมูล WMS
+        addMeasurementToSidebar({
+          id: measurementCounter++,
+          type: 'area',
+          value: areaText,
+          points: points,
+          bounds: bounds,
+          layer: measureControl.polygon,
+          wmsInfo: featuresInfo
+        });
+      }).catch(error => {
+        console.error('Error fetching WMS info:', error);
+        // เพิ่มการวัดลงในไซด์บาร์โดยไม่มีข้อมูล WMS
+        addMeasurementToSidebar({
+          id: measurementCounter++,
+          type: 'area',
+          value: areaText,
+          points: points,
+          bounds: bounds,
+          layer: measureControl.polygon,
+          wmsInfo: null
+        });
+      });
     }
   }
 }
 
-// เพิ่ม event listener สำหรับปุ่มล้าง
+// ฟังก์ชันใหม่สำหรับการดึงข้อมูล WMS ที่อยู่ภายในพื้นที่ polygon
+function getWMSFeaturesInPolygon(points) {
+  return new Promise((resolve, reject) => {
+    // ตรวจสอบ layers ที่เปิดใช้งานอยู่
+    const activeLayers = [];
+    layersConfig.forEach(cfg => {
+      if (map.hasLayer(wmsLayers[cfg.id])) {
+        activeLayers.push(cfg.id);
+      }
+    });
+    
+    if (activeLayers.length === 0) {
+      // ไม่มี layers ที่เปิดใช้งาน
+      resolve(null);
+      return;
+    }
+    
+    // สร้าง GeoJSON ของ polygon
+    const polygonGeoJSON = {
+      type: "Polygon",
+      coordinates: [[]]
+    };
+    
+    // แปลงจุดเป็นรูปแบบ [lng, lat] สำหรับ GeoJSON
+    points.forEach(point => {
+      polygonGeoJSON.coordinates[0].push([point.lng, point.lat]);
+    });
+    
+    // ปิด polygon ด้วยจุดแรก
+    if (points.length > 0) {
+      polygonGeoJSON.coordinates[0].push([points[0].lng, points[0].lat]);
+    }
+    
+    // แปลง GeoJSON เป็น WKT (Well-Known Text)
+    const wktPolygon = `POLYGON((${polygonGeoJSON.coordinates[0].map(c => `${c[0]} ${c[1]}`).join(', ')}))`;
+    
+    // สร้างคำขอ GetFeature สำหรับแต่ละ layer ที่เปิดใช้งาน
+    const promises = activeLayers.map(layerId => {
+      // สร้าง URL สำหรับ WFS GetFeature
+      const wfsParams = {
+        service: 'WFS',
+        version: '1.0.0',
+        request: 'GetFeature',
+        typeName: layerId,
+        outputFormat: 'application/json',
+        CQL_FILTER: `INTERSECTS(geom, ${wktPolygon})`
+      };
+      
+      const url = wmsUrl.replace('/wms', '/wfs') + L.Util.getParamString(wfsParams, wmsUrl.replace('/wms', '/wfs'), true);
+      
+      return fetch(url)
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`Network response was not ok: ${response.status}`);
+          }
+          return response.json();
+        })
+        .then(data => {
+          return {
+            layerId: layerId,
+            layerName: layersConfig.find(cfg => cfg.id === layerId)?.name || layerId,
+            features: data.features || []
+          };
+        })
+        .catch(error => {
+          console.warn(`Error fetching WFS data for layer ${layerId}:`, error);
+          return {
+            layerId: layerId,
+            layerName: layersConfig.find(cfg => cfg.id === layerId)?.name || layerId,
+            features: [],
+            error: error.message
+          };
+        });
+    });
+    
+    // รวมผลลัพธ์จากทุก layer
+    Promise.all(promises)
+      .then(results => {
+        // กรองเฉพาะ layers ที่มีข้อมูล
+        const filteredResults = results.filter(result => result.features.length > 0);
+        resolve(filteredResults);
+      })
+      .catch(error => {
+        reject(error);
+      });
+  });
+}
+
+// สร้าง container สำหรับแสดงผลการวัดในไซด์บาร์
+const measureResultsDiv = document.createElement('div');
+measureResultsDiv.className = 'measure-results';
+measureResultsDiv.innerHTML = `
+  <h3>ผลการวัดพื้นที่</h3>
+  <div id="measure-results-container"></div>
+`;
+
+// เพิ่ม container ผลการวัดลงในไซด์บาร์หลังจากเครื่องมือวัด
+document.getElementById('sidebar').appendChild(measureResultsDiv);
+
+// ตัวแปรนับการวัด
+let measurementCounter = 1;
+
+// ฟังก์ชันเพิ่มการวัดลงในไซด์บาร์
+function addMeasurementToSidebar(measurement) {
+  const container = document.getElementById('measure-results-container');
+  
+  // สร้างองค์ประกอบสำหรับการวัดนี้
+  const measureItem = document.createElement('div');
+  measureItem.className = 'measure-result-item';
+  measureItem.id = `measure-item-${measurement.id}`;
+  
+  // คำนวณจุดกึ่งกลางของพื้นที่
+  const center = measurement.bounds.getCenter();
+  
+  // สร้าง HTML สำหรับข้อมูล WMS
+  let wmsInfoHTML = '';
+  let totalFeatures = 0;
+  
+  if (measurement.wmsInfo && measurement.wmsInfo.length > 0) {
+    wmsInfoHTML = '<div class="wms-features">';
+    wmsInfoHTML += '<h5>ข้อมูลในพื้นที่:</h5>';
+    
+    measurement.wmsInfo.forEach(layerInfo => {
+      if (layerInfo.features.length > 0) {
+        totalFeatures += layerInfo.features.length;
+        wmsInfoHTML += `<div class="layer-info">
+          <div class="layer-header">
+            <span class="layer-name">${layerInfo.layerName}</span>
+            <span class="feature-count">${layerInfo.features.length} รายการ</span>
+          </div>
+          <div class="feature-list">`;
+        
+       // แสดงตัวอย่างข้อมูล (จำกัดจำนวน)
+      const maxFeaturesToShow = Math.min(3, layerInfo.features.length);
+      for (let i = 0; i < maxFeaturesToShow; i++) {
+        const feature = layerInfo.features[i];
+        const name = feature.properties.name || feature.properties.NAME || '– ไม่พบชื่อ –';
+        wmsInfoHTML += `
+          <div class="feature-item">
+            <div class="property"><span class="key">ชื่อ:</span> ${name}</div>
+          </div>
+        `;
+      }
+
+        
+        // แสดงว่ามีข้อมูลเพิ่มเติม
+        if (layerInfo.features.length > maxFeaturesToShow) {
+          wmsInfoHTML += `<div class="more-features">และอีก ${layerInfo.features.length - maxFeaturesToShow} รายการ</div>`;
+        }
+        
+        wmsInfoHTML += `</div>
+        </div>`;
+      }
+    });
+    
+    // ถ้าไม่พบข้อมูลใด ๆ
+    if (totalFeatures === 0) {
+      wmsInfoHTML += '<div class="no-features">ไม่พบข้อมูลในพื้นที่นี้</div>';
+    }
+    
+    wmsInfoHTML += '</div>';
+  }
+  
+  // สร้างเนื้อหาสำหรับรายการการวัด
+  measureItem.innerHTML = `
+    <div class="measure-header">
+      <span class="measure-type">พื้นที่ #${measurement.id}</span>
+      <span class="measure-value">${measurement.value}</span>
+      <div class="measure-actions">
+        <button class="zoom-to-measure" title="ซูมไปยังพื้นที่นี้">🔍</button>
+        <button class="remove-measure" title="ลบรายการนี้">✖</button>
+      </div>
+    </div>
+    <div class="measure-details">
+      <div class="measure-location">
+        พิกัดกลาง: ${center.lat.toFixed(4)}, ${center.lng.toFixed(4)}
+      </div>
+      <div class="feature-summary">
+        พบข้อมูลทั้งหมด: <strong>${totalFeatures}</strong> รายการ
+      </div>
+      ${wmsInfoHTML}
+    </div>
+  `;
+  
+  // เพิ่มลงใน container
+  container.appendChild(measureItem);
+  
+  // เพิ่ม event listeners สำหรับปุ่ม
+  measureItem.querySelector('.zoom-to-measure').addEventListener('click', () => {
+    map.fitBounds(measurement.bounds);
+  });
+  
+  measureItem.querySelector('.remove-measure').addEventListener('click', () => {
+    // ลบออกจากไซด์บาร์
+    measureItem.remove();
+    
+    // ถ้า layer ยังอยู่บนแผนที่ ให้ลบออก
+    if (map.hasLayer(measurement.layer)) {
+      map.removeLayer(measurement.layer);
+    }
+  });
+}
+
+// แก้ไขปุ่ม clear-measure ให้ล้างผลการวัดในไซด์บาร์ด้วย
 document.getElementById('clear-measure').addEventListener('click', function() {
   // ยกเลิกโหมดที่ใช้งานอยู่
   deactivateMeasureTool();
@@ -618,11 +865,98 @@ document.getElementById('clear-measure').addEventListener('click', function() {
   // รีเซ็ต polyline และ polygon
   measureControl.line = null;
   measureControl.polygon = null;
+  
+  // ล้างผลการวัดในไซด์บาร์
+  document.getElementById('measure-results-container').innerHTML = '';
 });
 
-// เพิ่ม event listener สำหรับปุ่ม ESC เพื่อยกเลิกการวัด
-document.addEventListener('keydown', function(e) {
-  if (e.key === 'Escape' && measureControl.activeMode) {
-    deactivateMeasureTool();
-  }
-});
+// จุดความร้อน
+let hpData = axios.get("https://firms.modaps.eosdis.nasa.gov/mapserver/wfs/SouthEast_Asia/c56f7d70bc06160e3c443a592fd9c87e/?SERVICE=WFS&REQUEST=GetFeature&VERSION=2.0.0&TYPENAME=ms:fires_snpp_24hrs&STARTINDEX=0&COUNT=10000&SRSNAME=urn:ogc:def:crs:EPSG::4326&BBOX=-90,-180,90,180,urn:ogc:def:crs:EPSG::4326&outputformat=geojson");
+let onEachFeatureHotspot = (feature, layer) => {
+    if (feature.properties) {
+        layer.bindPopup(
+            `<span class="kanit"><b>ตำแหน่งจุดความร้อน</b>
+            <br/>ข้อมูลจาก <b>VIIRS</b>
+            <br/>ตำแหน่งที่พบ : ${feature.properties.latitude}, ${feature.properties.longitude} 
+            <br/>ค่า Brightness temperature: ${feature.properties.brightness} Kelvin
+            <br/>วันที่: ${feature.properties.acq_datetime} UTC`
+        );
+    }
+}
+
+let loadHotspot = async () => {
+    let hp = await hpData;
+    const fs = hp.data.features;
+    var geojsonMarkerOptions = {
+        radius: 5,
+        fillColor: "#ff5100",
+        color: "#a60b00",
+        weight: 0,
+        opacity: 1,
+        fillOpacity: 0.8
+    };
+
+    await L.geoJSON(fs, {
+        filter: function (feature) {
+            if (feature.geometry.coordinates[0] > 96.295861 && feature.geometry.coordinates[0] < 106.113154) {
+                if (feature.geometry.coordinates[1] > 5.157973 && feature.geometry.coordinates[1] < 20.221918) {
+                    // myModal.hide();
+                    return feature
+                }
+            }
+        },
+        pointToLayer: function (feature, latlng) {
+            return L.circleMarker(latlng, geojsonMarkerOptions);
+        },
+        name: "lyr",
+        onEachFeature: onEachFeatureHotspot
+    }).addTo(fc)
+}
+
+
+const modisURL = 'https://firms.modaps.eosdis.nasa.gov/mapserver/wfs/'
+               + 'SouthEast_Asia/c56f7d70bc06160e3c443a592fd9c87e/'
+               + '?SERVICE=WFS&REQUEST=GetFeature&VERSION=2.0.0'
+               + '&TYPENAME=ms:fires_modis_24hrs&STARTINDEX=0&COUNT=10000'
+               + '&SRSNAME=urn:ogc:def:crs:EPSG::4326'
+               + '&BBOX=-90,-180,90,180,urn:ogc:def:crs:EPSG::4326'
+               + '&outputformat=geojson';
+
+const loadModis = async () => {
+  const { data } = await axios.get(modisURL);
+  const features = data.features;
+
+  const style = {
+    radius: 5,
+    fillColor: '#ffcf33',   // สีเหลืองส้มต่างจาก VIIRS
+    color: '#995700',
+    weight: 0,
+    opacity: 1,
+    fillOpacity: 0.8
+  };
+
+  L.geoJSON(features, {
+    filter: f => {
+      const [lon, lat] = f.geometry.coordinates;
+      return lon > 96.296 && lon < 106.113 && lat > 5.158 && lat < 20.222;
+    },
+    pointToLayer: (f, latlng) => L.circleMarker(latlng, style),
+    onEachFeature: (f, layer) => {
+      layer.bindPopup(`
+        <span class="kanit"><b>ตำแหน่งจุดความร้อน</b>
+        <br/>ข้อมูลจาก <b>MODIS</b>
+        <br/>Lat/Lon : ${f.properties.latitude}, ${f.properties.longitude}
+        <br/>Brightness&nbsp;temp&nbsp;: ${f.properties.brightness} K
+        <br/>วันที่: ${f.properties.acq_datetime}&nbsp;UTC`);
+    }
+  }).addTo(modisFG);
+
+  /* เปิดเลเยอร์ทันที (ตามต้องการ) */
+  // modisFG.addTo(map);
+};
+
+
+  document.addEventListener('DOMContentLoaded', () => {
+    loadHotspot(); // VIIRS
+    loadModis();   // MODIS
+  });

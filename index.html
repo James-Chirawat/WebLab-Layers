@@ -21,17 +21,27 @@ href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
 <body>
     
   <div id="sidebar">
-    <h2>Layers</h2>
-    <div id="layers-control">
-      <!-- JS will inject checkboxes here -->
+    <!-- เครื่องมือวัด (เอา … ออก แล้ว JS จะ inject จริง) -->
+    <div class="measure-tools"></div>
+
+    <!-- ส่วนแสดงผลลัพธ์ -->
+    <div id="measure-results">
+      <h3>ข้อมูลภายในพื้นที่</h3>
+      <div id="measure-results-list"></div>
     </div>
+
+    <!-- ส่วน Layers Control -->
+    <h2>Layers</h2>
+    <div id="layers-control"></div>
     <button id="resetView">Reset view</button>
   </div>
+
   <div id="map"></div>
 
 <!-- leaflet.js -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/axios@1.1.2/dist/axios.min.js"></script>
 <script src="script.js"></script>
 </body>
 </html>
